@@ -1,0 +1,11 @@
+# MCP SDK
+mcp>=1.0.0
+
+# GitHub API
+PyGithub>=2.1.1
+
+# HTTP requests
+requests>=2.31.0
+
+# For async operations
+aiohttp>=3.9.0
