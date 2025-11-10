@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  readme-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: readme-mcp-server
+    volumes:
+      # 開発時にソースコードの変更を反映させる
+      - ./src:/app/src
+    environment:
+      # GitHub APIトークン（必要に応じて.envファイルから読み込む）
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+    stdin_open: true
+    tty: true
+    # MCPサーバーは標準入出力で通信するため、対話モードで起動
+    command: python -m readme_mcp.server

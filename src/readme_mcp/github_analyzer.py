@@ -31,17 +31,67 @@ class GitHubAnalyzer:
         Returns:
             (owner, repo_name)のタプル
         """
+        # URLをクリーンアップ
+        url = url.strip().rstrip('/')
+
         # https://github.com/owner/repo の形式から抽出
         pattern = r"github\.com/([^/]+)/([^/]+)"
         match = re.search(pattern, url)
 
         if not match:
-            raise ValueError("Invalid GitHub repository URL")
+            raise ValueError(f"Invalid GitHub repository URL: {url}")
 
         owner = match.group(1)
-        repo_name = match.group(2).rstrip('.git')
+        repo_name = match.group(2)
+
+        # .git拡張子を削除
+        repo_name = repo_name.rstrip('.git')
+
+        # /tree/main などの余分なパスを削除
+        repo_name = repo_name.split('?')[0].split('#')[0]
 
         return owner, repo_name
+
+    def get_file_structure(self, repo) -> dict:
+        """
+        リポジトリのファイル構造を取得
+
+        Args:
+            repo: GitHubリポジトリオブジェクト
+
+        Returns:
+            ファイル構造情報
+        """
+        structure = {
+            "has_readme": False,
+            "dependency_files": [],
+            "main_directories": [],
+        }
+
+        try:
+            contents = repo.get_contents("")
+
+            for content in contents:
+                # README.mdの存在確認
+                if content.name.lower().startswith("readme"):
+                    structure["has_readme"] = True
+
+                # 依存関係ファイルの検出
+                dependency_files = [
+                    "package.json", "requirements.txt", "Cargo.toml",
+                    "go.mod", "pom.xml", "build.gradle", "Gemfile"
+                ]
+                if content.name in dependency_files:
+                    structure["dependency_files"].append(content.name)
+
+                # メインディレクトリの取得
+                if content.type == "dir":
+                    structure["main_directories"].append(content.name)
+
+        except Exception as e:
+            print(f"ファイル構造の取得中にエラー: {e}")
+
+        return structure
 
     def analyze_repository(self, repo_url: str) -> dict:
         """
@@ -66,8 +116,24 @@ class GitHubAnalyzer:
             "forks": repo.forks_count,
             "topics": repo.get_topics(),
             "license": repo.license.name if repo.license else None,
+            "url": repo.html_url,
+            "clone_url": repo.clone_url,
         }
 
-        # TODO: ファイル構造やコード内容の解析を追加
+        # ファイル構造の解析
+        structure = self.get_file_structure(repo)
+        info.update(structure)
+
+        # コントリビューター情報（上位3名）
+        try:
+            contributors = repo.get_contributors()
+            info["top_contributors"] = [
+                contributor.login for contributor in list(contributors)[:3]
+            ]
+        except Exception:
+            info["top_contributors"] = []
+
+        # 最近の更新日
+        info["last_updated"] = repo.updated_at.strftime("%Y-%m-%d") if repo.updated_at else None
 
         return info

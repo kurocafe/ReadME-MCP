@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "readme-mcp": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_TOKEN=${GITHUB_TOKEN}",
+        "readme-mcp-server",
+        "python",
+        "-m",
+        "readme_mcp.server"
+      ]
+    }
+  }
+}
