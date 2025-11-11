@@ -44,11 +44,12 @@ class GitHubAnalyzer:
         owner = match.group(1)
         repo_name = match.group(2)
 
-        # .git拡張子を削除
-        repo_name = repo_name.rstrip('.git')
-
         # /tree/main などの余分なパスを削除
         repo_name = repo_name.split('?')[0].split('#')[0]
+
+        # .git拡張子を削除（endsWithを使って正確にマッチ）
+        if repo_name.endswith('.git'):
+            repo_name = repo_name[:-4]
 
         return owner, repo_name
 
@@ -89,7 +90,8 @@ class GitHubAnalyzer:
                     structure["main_directories"].append(content.name)
 
         except Exception as e:
-            print(f"ファイル構造の取得中にエラー: {e}")
+            import sys
+            print(f"ファイル構造の取得中にエラー: {e}", file=sys.stderr, flush=True)
 
         return structure
 
@@ -103,7 +105,11 @@ class GitHubAnalyzer:
         Returns:
             リポジトリ情報の辞書
         """
+        import sys
         owner, repo_name = self.parse_repository_url(repo_url)
+        print(f"[DEBUG] Input URL: '{repo_url}'", file=sys.stderr, flush=True)
+        print(f"[DEBUG] Parsed owner: '{owner}', repo_name: '{repo_name}'", file=sys.stderr, flush=True)
+        print(f"[DEBUG] Full repo path: '{owner}/{repo_name}'", file=sys.stderr, flush=True)
         repo = self.github.get_repo(f"{owner}/{repo_name}")
 
         # 基本情報を取得
@@ -137,3 +143,55 @@ class GitHubAnalyzer:
         info["last_updated"] = repo.updated_at.strftime("%Y-%m-%d") if repo.updated_at else None
 
         return info
+
+    def save_readme_to_repository(self, repo_url: str, readme_content: str, commit_message: str = "Update README.md via MCP") -> dict:
+        """
+        GitHubリポジトリにREADME.mdを保存
+
+        Args:
+            repo_url: GitHubリポジトリのURL
+            readme_content: READMEの内容
+            commit_message: コミットメッセージ
+
+        Returns:
+            保存結果の辞書
+        """
+        import sys
+        owner, repo_name = self.parse_repository_url(repo_url)
+        repo = self.github.get_repo(f"{owner}/{repo_name}")
+
+        try:
+            # 既存のREADME.mdを取得
+            contents = repo.get_contents("README.md")
+            # 既存ファイルを更新
+            result = repo.update_file(
+                path="README.md",
+                message=commit_message,
+                content=readme_content,
+                sha=contents.sha
+            )
+            print(f"[DEBUG] Updated existing README.md", file=sys.stderr, flush=True)
+            return {
+                "status": "updated",
+                "message": "README.mdを更新しました",
+                "commit_sha": result["commit"].sha,
+                "commit_url": result["commit"].html_url
+            }
+        except Exception as e:
+            # README.mdが存在しない場合は新規作成
+            if "404" in str(e):
+                result = repo.create_file(
+                    path="README.md",
+                    message=commit_message,
+                    content=readme_content
+                )
+                print(f"[DEBUG] Created new README.md", file=sys.stderr, flush=True)
+                return {
+                    "status": "created",
+                    "message": "README.mdを新規作成しました",
+                    "commit_sha": result["commit"].sha,
+                    "commit_url": result["commit"].html_url
+                }
+            else:
+                # その他のエラー
+                raise e

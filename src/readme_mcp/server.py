@@ -40,6 +40,28 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["repository_url"]
             }
+        ),
+        Tool(
+            name="save_readme_to_github",
+            description="生成されたREADME.mdをGitHubリポジトリに保存します",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repository_url": {
+                        "type": "string",
+                        "description": "GitHubリポジトリのURL（例: https://github.com/user/repo）"
+                    },
+                    "readme_content": {
+                        "type": "string",
+                        "description": "保存するREADME.mdの内容"
+                    },
+                    "commit_message": {
+                        "type": "string",
+                        "description": "コミットメッセージ（オプション、デフォルト: 'Update README.md via MCP'）"
+                    }
+                },
+                "required": ["repository_url", "readme_content"]
+            }
         )
     ]
 
@@ -68,6 +90,47 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return [TextContent(
                 type="text",
                 text=f"README.mdの生成が完了しました:\n\n{readme_content}"
+            )]
+
+        except ValueError as e:
+            return [TextContent(
+                type="text",
+                text=f"エラー: {str(e)}"
+            )]
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=f"予期しないエラーが発生しました: {str(e)}"
+            )]
+
+    elif name == "save_readme_to_github":
+        try:
+            # 必須パラメータを取得
+            repo_url = arguments.get("repository_url")
+            readme_content = arguments.get("readme_content")
+            commit_message = arguments.get("commit_message", "Update README.md via MCP")
+
+            if not repo_url:
+                return [TextContent(
+                    type="text",
+                    text="エラー: repository_urlが指定されていません"
+                )]
+            if not readme_content:
+                return [TextContent(
+                    type="text",
+                    text="エラー: readme_contentが指定されていません"
+                )]
+
+            # GitHubにREADME.mdを保存
+            result = github_analyzer.save_readme_to_repository(
+                repo_url=repo_url,
+                readme_content=readme_content,
+                commit_message=commit_message
+            )
+
+            return [TextContent(
+                type="text",
+                text=f"{result['message']}\n\nコミットURL: {result['commit_url']}\nコミットSHA: {result['commit_sha']}"
             )]
 
         except ValueError as e:
